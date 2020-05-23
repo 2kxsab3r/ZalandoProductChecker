@@ -33,7 +33,7 @@ class ZalandoAPI:
     RESR_URL = INDEX_URL / 'resources/77fdb5043d236dc310c6074abbf38d'
     LOGIN_URL = INDEX_URL / 'login'
     MYACCOUNT_URL = INDEX_URL / 'myaccount'
-    ACCESSORIES_URL = INDEX_URL / 'accessories/__size-One---size/'
+    ACCESSORIES_URL = INDEX_URL / 'mens-hats-caps/__size-One---size/'
     CART_URL = INDEX_URL / 'cart'
     CHK_CONFIRM_URL = INDEX_URL / 'checkout/confirm'
     CHK_ADDRESS_URL = INDEX_URL / 'checkout/address'
@@ -41,6 +41,8 @@ class ZalandoAPI:
     API_SCHEMA_URL = API_LOGIN_URL / 'schema'
     API_CONSENTS = INDEX_URL / 'api/consents'
     API_SIZERECO = INDEX_URL / 'api/pdp/sizereco'
+    API_CHECK_WISHLIST = INDEX_URL / 'api/pdp/check-wishlist'
+    API_PREFERENCE_BRANDS = INDEX_URL / 'api/customer-preference-api/preference-types/brands'
     API_CART = INDEX_URL / 'api/pdp/cart'
     API_CART_COUNT = INDEX_URL / 'api/navigation/cart-count'
     API_CART_DETAILS = INDEX_URL / 'api/cart/details'
@@ -134,7 +136,7 @@ class ZalandoAPI:
     async def api_logout(self):  # todo on exit
         pass
 
-    async def api_sizereco(self, xsrf, referer, simple_sku, silhouette, tgroup, version, gender):
+    async def api_sizereco(self, xsrf, referer, simple_sku, silhouette, version, chash):
         logging.info('sizereco api request')
         headers = {
             'Accept': 'application/json',
@@ -143,21 +145,57 @@ class ZalandoAPI:
             'x-xsrf-token': xsrf,
         }
         data = {
-          "configSku": simple_sku.lstrip('0ONE000'),
+          "configSku": simple_sku.rstrip('0ONE000'),
           "isSizeFlagApplicable": False,
           "isSizeRecoApplicable": False,
           "isSizeTableApplicable": True,
-          "isSizeProfileApplicable": False,
           "isSizeFinderApplicable": False,
-          "customerHash": None,
+          "customerHash": chash,
           "availableSimpleSkus": [simple_sku],
           "silhouette": silhouette,
-          "targetGroup": tgroup,
+          "targetGroup": "UNISEX",
           "version": version,
-          "gender": gender,
+          "tableBounds": {
+               "filters": [
+                   {
+                       "targetGroups": [
+                           "MALE",
+                           "FEMALE",
+                           "UNISEX"
+                       ],
+                       "filterName": "matchStrictEqual"
+                   }
+               ],
+               "units": [
+                   {
+                       "local": "One Size",
+                       "local_type": "UK"
+                   }
+               ]
+           },
           "localSizeType": "UK"
         }
         resp = await self.session.post(self.API_SIZERECO, headers=headers, json=data)
+
+    async def api_check_wishlist(self, xsrf, referer, simple_sku):
+        logging.info('check wishlist api request')
+        headers = {
+            'Accept': '*/*',
+            'Referer': str(referer),
+            'Origin': str(self.INDEX_URL.origin()),
+            'x-xsrf-token': xsrf,
+        }
+        resp = await self.session.get(self.API_CHECK_WISHLIST, params={'configSku': simple_sku.rstrip('0ONE000')}, headers=headers)
+
+    async def api_preference_brands(self, xsrf, referer):
+        logging.info('preference brands api request')
+        headers = {
+            'Accept': '*/*',
+            'Referer': str(referer),
+            'Origin': str(self.INDEX_URL.origin()),
+            'x-xsrf-token': xsrf,
+        }
+        resp = await self.session.get(self.API_PREFERENCE_BRANDS, headers=headers)
 
     async def api_cart(self, xsrf, referer, simple_sku):
         logging.info('cart api request')
@@ -168,7 +206,7 @@ class ZalandoAPI:
             'x-xsrf-token': xsrf,
         }
         resp = await self.session.post(self.API_CART, headers=headers,
-                                       json={'simpleSku': simple_sku, 'anonymous': 'false'})
+                                       json={'simpleSku': simple_sku, 'anonymous': False})
 
     async def api_cart_count(self, xsrf, referer):
         logging.info('cart count api request')
@@ -179,6 +217,9 @@ class ZalandoAPI:
             'x-xsrf-token': xsrf,
         }
         resp = await self.session.get(self.API_CART_COUNT, headers=headers)
+        count = await resp.json()
+        if count == 0:
+            raise ValueError('Zero product count in a cart')
 
     async def api_cart_details(self, xsrf, referer):
         logging.info('cart details api request')
@@ -231,14 +272,14 @@ class ZalandoAPI:
         logging.info('remove item api request')
         headers = {
             'Accept': 'application/json',
-            'Referer': str(self.CHK_ADDRESS_URL),
+            'Referer': str(self.CHK_CONFIRM_URL),
             'Origin': str(self.INDEX_URL.origin()),
             'x-xsrf-token': xsrf,
             'x-zalando-header-mode': 'desktop',
             'x-zalando-footer-mode': 'desktop',
             'x-zalando-checkout-app': 'web',
         }
-        resp = await self.session.post(self.API_NEXT_STEP, headers=headers,
+        resp = await self.session.post(self.API_REMOVE_ITEM, headers=headers,
                                        json={'simpleSku': simple_sku, 'ids': []})
 
     async def myaccount_page(self):
@@ -294,15 +335,45 @@ class ZalandoAPI:
         html = await resp.text()
         return html
 
-    async def payment_session_page(self, url):
-        logging.info('getting a payment session page')
+    async def payment_session(self, url):
+        logging.info('getting a payment session')
         headers = {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Host': URL(url).host,
             'Referer': str(self.CHK_ADDRESS_URL),
             'Upgrade-Insecure-Requests': '1'
         }
+        resp = await self.session.get(url, headers=headers, allow_redirects=False)
+        if resp.status != 307:
+            raise ValueError(f'Invalid redirection status {resp.status}')
+        return resp.headers['location'], resp.cookies
+
+    async def payment_selection(self, url, cookies):
+        logging.info('getting a payment selection')
+        headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Host': url.host,
+            'Referer': str(self.CHK_ADDRESS_URL),
+            'Upgrade-Insecure-Requests': '1',
+        }
+        resp = await self.session.get(url, headers=headers, allow_redirects=False,
+                                      )
+                                      # cookies={'Session-ID': cookies['Session-ID'].value, 'Query-Parameters': cookies['Query-Parameters'].value})
+                                      # cookies=cookies)
+        if resp.status != 303:
+            raise ValueError(f'Invalid redirection status {resp.status}')
+        return resp.headers['location']
+
+    async def payment_complete(self, url):
+        logging.info('getting a checkout payment complete')
+        headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Host': URL(url).host,
+            'Referer': str(self.CHK_ADDRESS_URL),
+            'Upgrade-Insecure-Requests': '1',
+        }
         resp = await self.session.get(url, headers=headers)
+        resp.raise_for_status()
 
     async def purchase(self):
         pass

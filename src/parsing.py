@@ -36,9 +36,9 @@ def find_product_params(text):
     units = params['model']['articleInfo']['units']
     id = next(filter(lambda u: u['available'], units))['id']
     silhouette = params['model']['articleInfo']['silhouette_code']
-    tgroup = gender = params['model']['articleInfo']['targetGroups']['gender']
     version = params['model']['sizeInfo']['sizeRecoAlgoVersion']
-    return id, silhouette, tgroup, version, gender
+    uid_hash = params['model']['customerProfile']['uidHash']
+    return id, silhouette, version, uid_hash
 
 
 def find_address_id(text):

@@ -14,7 +14,7 @@ from parsing import *
 
 
 TIMEOUT = 5
-SESSION_TIMEOUT = 30
+SESSION_TIMEOUT = None
 ctx = ContextVar('ctx', default='MAINCTX')
 
 
@@ -23,17 +23,14 @@ def read_csv(file):
     return [row for row in reader][:1]  # todo remove
 
 
-async def set_redirect_cookie(session, trace_config_ctx, params):  # todo
-    logging.info('set redirect cookies')
-    
-
 class PurchasingTask:
+
 
     def __init__(self, api_data):
         trace_config = TraceConfig()
         trace_config.on_request_end.append(on_request_end)
         trace_config.on_request_chunk_sent.append(on_request_chunk_sent)
-        trace_config.on_request_redirect.extend(set_redirect_cookie, on_request_redirect)
+        trace_config.on_request_redirect.append(on_request_redirect)
         self.session = ClientSession(raise_for_status=False,
                                      headers=ZalandoAPI.CONSTANT_HEADERS,
                                      timeout=ClientTimeout(total=SESSION_TIMEOUT),
@@ -51,26 +48,22 @@ class PurchasingTask:
 
     async def log_in(self):
         logging.info('start logging in')
-        xsrf, client_id, child_request_id1 = await self.api.login_page()
+        xsrf, client_id, child_request_id = await self.api.login_page()
         await self._resources(self.api.LOGIN_URL)
-        # logging.debug('Child request id: %s', child_request_id1)
         # child_request_id2 = await self.api.api_consents(CookiePolicyState.INIT, xsrf)
-        # logging.debug('Child request id: %s', child_request_id2)
         # child_request_id3 = await self.api.api_consents(CookiePolicyState.ACCEPT, xsrf)
-        # logging.debug('Child request id: %s', child_request_id3)
-        await self.api.api_schema(xsrf, client_id, child_request_id1)
+        await self.api.api_schema(xsrf, client_id, child_request_id)
         await sleep(Delay.API)
-        await self.api.api_login(xsrf, client_id, child_request_id1)
+        await self.api.api_login(xsrf, client_id, child_request_id)
         logging.info('logging in is finished')
         return xsrf
 
-    async def decrease_steps(self, xsrf):
+    async def decrease_steps(self,  xsrf):
         logging.info('start steps decreasing')
-        # await self._resources(self.api.LOGIN_URL)
         await self.api.myaccount_page()
         await self._resources(self.api.MYACCOUNT_URL)
 
-        html = await self.api.one_size_accessories_page()
+        html = await self.api.one_size_accessories_page()  # todo rename
         # navigation re
         # quest
         # brands request
@@ -79,16 +72,18 @@ class PurchasingTask:
         await self._resources(self.api.ACCESSORIES_URL)
 
         html = await self.api.product_page(product_url)
-        product_id, silhouette, tgroup, version, gender = find_product_params(html)
+        product_id, silhouette, version, uid_hash = find_product_params(html)
         await self._resources(product_url)
         # navigation request
-        # sizereco request
-        # check-whishlist request
-        # brands request
         # reviews request
         # summaries request
 
-        await self.api.api_sizereco(xsrf, product_url, product_id, silhouette, tgroup, version, gender)
+        await self.api.api_sizereco(xsrf, product_url, product_id, silhouette, version, uid_hash)
+        await sleep(Delay.API)
+        await self.api.api_check_wishlist(xsrf, product_url, product_id)
+        await sleep(Delay.API)
+        await self.api.api_preference_brands(xsrf, product_url)
+        await sleep(Delay.CART)
         await self.api.api_cart(xsrf, product_url, product_id)
         await sleep(Delay.API)
         await self.api.api_cart_count(xsrf, product_url)
@@ -98,23 +93,33 @@ class PurchasingTask:
         html = await self.api.cart_page(product_url)
         cart_id, flow_id = find_redeem_params(html)
         await self._resources(self.api.CART_URL)
-        await self.api.api_redeem(xsrf, cart_id, flow_id)  # discount may be invalid
+        # discount may be expired/invalid, or product already has it
+        # todo uncomment
+        await self.api.api_redeem(xsrf, cart_id, flow_id)
+        await sleep(Delay.API)
         # navigation request
         # cmag request
         # reco request
         # check-whishlist request
-        html = await self.api.checkout_confirm_page() # 302 /checkout/address
+        html = await self.api.checkout_confirm_page()  # 302 /checkout/address
         address_id = find_address_id(html)
         await self._resources(self.api.CHK_ADDRESS_URL)
         # cmag
 
         await self.api.api_checkout_address_def(xsrf, address_id)
-        pay_sel_session_url = await self.api.api_next_step(xsrf)
-        await self.api.payment_session_page(pay_sel_session_url)  # todo change host
+        payment_session_url = URL(await self.api.api_next_step(xsrf))
+        await sleep(Delay.API)
         # 307,303, 302: payment.domain/selection, payment.domain/payment-complete, /checkout/confirm
+        location, cookies = await self.api.payment_session(payment_session_url)
+        payment_selection_url = payment_session_url.with_path(location)
+        await sleep(Delay.PAYMENT)
+        location = await self.api.payment_selection(payment_selection_url, cookies)
+        await sleep(Delay.PAYMENT)
+        await self.api.payment_complete(location)
         await self._resources(self.api.CHK_CONFIRM_URL)
 
         await self.api.api_remove_item(xsrf, product_id)
+        await sleep(Delay.PAGE)  # todo necessary?
         await self.api.cart_page(self.api.CHK_CONFIRM_URL)
         await self._resources(self.api.CART_URL)
         logging.info('steps decreasing is finished')
@@ -129,8 +134,13 @@ class PurchasingTask:
         logging.info('task is running')
         xsrf = await self.log_in()
         await sleep(Delay.PAGE)
-        await self.decrease_steps(xsrf)
-        await self.monitor_purchase()
+        try:
+            await self.decrease_steps(xsrf)
+            await self.monitor_purchase()
+        except:
+            logging.exception('')
+            await sleep(Delay.PAGE)
+
         await self.log_out()
         await self.session.close()
         logging.info('task is finished')
@@ -148,7 +158,7 @@ async def main(csv):
         try:
             res = await f
             #todo result checking for errors
-        except Exception as e:
+        except:
             logging.exception('')
 
     logging.info('done')
@@ -159,11 +169,11 @@ if __name__ == '__main__':
     colorama.init(autoreset=True)
 
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('csv', type=FileType('r'), help='absolute or relative to the current working directory path of a csv file')
-    parser.add_argument('--timeout', type=int,  default=TIMEOUT, help='polling time in seconds to wait for a next monitoring request')
-    parser.add_argument('--log-level', default='info', choices=list(n.lower() for n in logging._nameToLevel), help="set the logging level")
+    parser.add_argument('csv', type=FileType('r'), help='Absolute or relative to the current working directory path of a csv file')
+    parser.add_argument('--timeout', type=int,  default=TIMEOUT, help='Polling time in seconds to wait for a next monitoring request')
+    parser.add_argument('--log-level', default='info', choices=list(n.lower() for n in logging._nameToLevel), help="Set the logging level")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging._nameToLevel[args.log_level.upper()], stream=sys.stdout, format='[%(asctime)s %(name)s %(levelname)s] %(message)s',
-                        datefmt='%m-%d %H:%M:%S')
+    logging.basicConfig(level=logging._nameToLevel[args.log_level.upper()], stream=sys.stdout,
+                        format='[%(asctime)s %(name)s %(levelname)s] %(message)s', datefmt='%m-%d %H:%M:%S')
     asyncio.run(main(args.csv))
