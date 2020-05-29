@@ -1,12 +1,13 @@
 import sys
 import csv
 import asyncio
-import aiohttp.hdrs
-
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, FileType
 from contextvars import ContextVar
+
+import aiohttp.hdrs
 from aiohttp import ClientSession, ClientTimeout, TraceConfig
 from yarl import URL
+
 from api import ZalandoAPI
 from tracing import on_request_chunk_sent, on_request_redirect, on_request_end
 from utils import make_ctx, Delay, sleep
@@ -25,13 +26,12 @@ def read_csv(file):
 
 class PurchasingTask:
 
-
     def __init__(self, api_data):
         trace_config = TraceConfig()
         trace_config.on_request_end.append(on_request_end)
         trace_config.on_request_chunk_sent.append(on_request_chunk_sent)
         trace_config.on_request_redirect.append(on_request_redirect)
-        self.session = ClientSession(raise_for_status=False,
+        self.session = ClientSession(raise_for_status=True,
                                      headers=ZalandoAPI.CONSTANT_HEADERS,
                                      timeout=ClientTimeout(total=SESSION_TIMEOUT),
                                      trace_configs=[trace_config])
@@ -63,10 +63,7 @@ class PurchasingTask:
         await self.api.myaccount_page()
         await self._resources(self.api.MYACCOUNT_URL)
 
-        html = await self.api.one_size_accessories_page()  # todo rename
-        # navigation re
-        # quest
-        # brands request
+        html = await self.api.one_size_accessories_page()
         product_url = find_rand_product_url(html)
         product_url = ZalandoAPI.INDEX_URL.join(URL(product_url))
         await self._resources(self.api.ACCESSORIES_URL)
@@ -74,9 +71,6 @@ class PurchasingTask:
         html = await self.api.product_page(product_url)
         product_id, silhouette, version, uid_hash = find_product_params(html)
         await self._resources(product_url)
-        # navigation request
-        # reviews request
-        # summaries request
 
         await self.api.api_sizereco(xsrf, product_url, product_id, silhouette, version, uid_hash)
         await sleep(Delay.API)
@@ -93,18 +87,13 @@ class PurchasingTask:
         html = await self.api.cart_page(product_url)
         cart_id, flow_id = find_redeem_params(html)
         await self._resources(self.api.CART_URL)
+
         # discount may be expired/invalid, or product already has it
-        # todo uncomment
         await self.api.api_redeem(xsrf, cart_id, flow_id)
         await sleep(Delay.API)
-        # navigation request
-        # cmag request
-        # reco request
-        # check-whishlist request
         html = await self.api.checkout_confirm_page()  # 302 /checkout/address
         address_id = find_address_id(html)
         await self._resources(self.api.CHK_ADDRESS_URL)
-        # cmag
 
         await self.api.api_checkout_address_def(xsrf, address_id)
         payment_session_url = URL(await self.api.api_next_step(xsrf))
@@ -119,7 +108,7 @@ class PurchasingTask:
         await self._resources(self.api.CHK_CONFIRM_URL)
 
         await self.api.api_remove_item(xsrf, product_id)
-        await sleep(Delay.PAGE)  # todo necessary?
+        await sleep(Delay.PAGE)
         await self.api.cart_page(self.api.CHK_CONFIRM_URL)
         await self._resources(self.api.CART_URL)
         logging.info('steps decreasing is finished')
@@ -157,7 +146,6 @@ async def main(csv):
     for f in asyncio.as_completed(tasks):
         try:
             res = await f
-            #todo result checking for errors
         except:
             logging.exception('')
 
@@ -165,9 +153,6 @@ async def main(csv):
 
 
 if __name__ == '__main__':
-    import colorama
-    colorama.init(autoreset=True)
-
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('csv', type=FileType('r'), help='Absolute or relative to the current working directory path of a csv file')
     parser.add_argument('--timeout', type=int,  default=TIMEOUT, help='Polling time in seconds to wait for a next monitoring request')

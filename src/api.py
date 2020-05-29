@@ -1,8 +1,8 @@
 import logging
-import aiohttp.hdrs
-
 from enum import IntEnum
 from dataclasses import dataclass, field
+
+import aiohttp.hdrs
 from aiohttp import ClientSession
 from yarl import URL
 
@@ -133,7 +133,7 @@ class ZalandoAPI:
         resp = await self.session.post(self.API_LOGIN_URL, headers=headers,
                                        json={'username': self.login, 'password': self.password, 'wnaMode': 'shop'})
 
-    async def api_logout(self):  # todo on exit
+    async def api_logout(self):
         pass
 
     async def api_sizereco(self, xsrf, referer, simple_sku, silhouette, version, chash):
@@ -356,10 +356,8 @@ class ZalandoAPI:
             'Referer': str(self.CHK_ADDRESS_URL),
             'Upgrade-Insecure-Requests': '1',
         }
-        resp = await self.session.get(url, headers=headers, allow_redirects=False,
-                                      )
-                                      # cookies={'Session-ID': cookies['Session-ID'].value, 'Query-Parameters': cookies['Query-Parameters'].value})
-                                      # cookies=cookies)
+        resp = await self.session.get(url, headers=headers, allow_redirects=False)
+
         if resp.status != 303:
             raise ValueError(f'Invalid redirection status {resp.status}')
         return resp.headers['location']

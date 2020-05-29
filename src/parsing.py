@@ -1,8 +1,8 @@
 import logging
 import json
-
 from random import choice
 from urllib.parse import unquote
+
 from lxml import etree
 
 
@@ -16,7 +16,7 @@ def find_redeem_params(text):
     html = etree.HTML(text)
     cart_data_divs = html.xpath('//div[@id="app"]')
     count = len(cart_data_divs)
-    if count != 1:  # todo cary out to a class
+    if count != 1:
         logging.warning('%s divs. Cart data got from an undefined.')
     data = cart_data_divs[0].attrib['data-data']
     params = unquote(data)
