@@ -60,6 +60,9 @@ class ZalandoAPI:
             'Connection': 'close',  # https://stackoverflow.com/a/61436084
             'DNT': '1',  # https://stackoverflow.com/a/61436084
         }
+    H_ACCEPT_TEXT = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+    H_ACCEPT_ALL = '*/*'
+    MIME_JSON = 'application/json'
 
     login: str
     password: str
@@ -75,7 +78,7 @@ class ZalandoAPI:
     async def resources(self, method, referer: str):
         logging.info('getting the resources')
         headers = {
-            'Accept': '*/*',
+            'Accept': self.H_ACCEPT_ALL,
             'Content-Type': 'text/plain;charset=UTF-8',
             'Referer': referer,
         }
@@ -86,8 +89,8 @@ class ZalandoAPI:
     async def login_page(self):
         logging.info('getting a login page')
         headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Upgrade-Insecure-Requestshttps://www.youtube.com/watch?v=ZJ7FGBDErXY&list=PLoYlC0wSPJWaPvMrcGOs7veNzQ6_fE1kn&index=22': '1'
+            'Accept': self.H_ACCEPT_TEXT,
+            'Upgrade-Insecure-Requests': '1'
         }
         resp = await self.session.get(self.LOGIN_URL, headers=headers)
         return self._cookies['frsx'].value, self._cookies['Zalando-Client-Id'].value, resp.headers['x-zalando-child-request-id']
@@ -95,7 +98,7 @@ class ZalandoAPI:
     async def api_consents(self, state: CookiePolicyState, xsrf):
         logging.info('consents api request')
         headers = {
-            'Accept': '*/*',
+            'Accept': self.H_ACCEPT_ALL,
             'Referer': str(self.LOGIN_URL),
             'Origin': str(self.INDEX_URL.origin()),
             'Content-Type': 'text/plain;charset=UTF-8',
@@ -108,9 +111,9 @@ class ZalandoAPI:
     async def api_schema(self, xsrf, client_id, flow_id):
         logging.info('schema api request')
         headers = {
-            'Accept': 'application/json',
+            'Accept': self.MIME_JSON,
             'Referer': str(self.LOGIN_URL),
-            'Content-Type': 'application/json',
+            'Content-Type': self.MIME_JSON,
             'x-zalando-client-id': client_id,
             'x-zalando-render-page-uri': '/login',
             'x-zalando-request-uri': '/login',
@@ -139,7 +142,7 @@ class ZalandoAPI:
     async def api_sizereco(self, xsrf, referer, simple_sku, silhouette, version, chash):
         logging.info('sizereco api request')
         headers = {
-            'Accept': 'application/json',
+            'Accept': self.MIME_JSON,
             'Referer': str(referer),
             'Origin': str(self.INDEX_URL.origin()),
             'x-xsrf-token': xsrf,
@@ -180,7 +183,7 @@ class ZalandoAPI:
     async def api_check_wishlist(self, xsrf, referer, simple_sku):
         logging.info('check wishlist api request')
         headers = {
-            'Accept': '*/*',
+            'Accept': self.H_ACCEPT_ALL,
             'Referer': str(referer),
             'Origin': str(self.INDEX_URL.origin()),
             'x-xsrf-token': xsrf,
@@ -190,7 +193,7 @@ class ZalandoAPI:
     async def api_preference_brands(self, xsrf, referer):
         logging.info('preference brands api request')
         headers = {
-            'Accept': '*/*',
+            'Accept': self.H_ACCEPT_ALL,
             'Referer': str(referer),
             'Origin': str(self.INDEX_URL.origin()),
             'x-xsrf-token': xsrf,
@@ -200,7 +203,7 @@ class ZalandoAPI:
     async def api_cart(self, xsrf, referer, simple_sku):
         logging.info('cart api request')
         headers = {
-            'Accept': 'application/json',
+            'Accept': self.MIME_JSON,
             'Referer': str(referer),
             'Origin': str(self.INDEX_URL.origin()),
             'x-xsrf-token': xsrf,
@@ -211,7 +214,7 @@ class ZalandoAPI:
     async def api_cart_count(self, xsrf, referer):
         logging.info('cart count api request')
         headers = {
-            'Accept': '*/*',
+            'Accept': self.H_ACCEPT_ALL,
             'Referer': str(referer),
             'Origin': str(self.INDEX_URL.origin()),
             'x-xsrf-token': xsrf,
@@ -224,7 +227,7 @@ class ZalandoAPI:
     async def api_cart_details(self, xsrf, referer):
         logging.info('cart details api request')
         headers = {
-            'Accept': '*/*',
+            'Accept': self.H_ACCEPT_ALL,
             'Referer': str(referer),
             'Origin': str(self.INDEX_URL.origin()),
             'x-xsrf-token': xsrf,
@@ -271,7 +274,7 @@ class ZalandoAPI:
     async def api_remove_item(self, xsrf, simple_sku):
         logging.info('remove item api request')
         headers = {
-            'Accept': 'application/json',
+            'Accept': self.MIME_JSON,
             'Referer': str(self.CHK_CONFIRM_URL),
             'Origin': str(self.INDEX_URL.origin()),
             'x-xsrf-token': xsrf,
@@ -285,7 +288,7 @@ class ZalandoAPI:
     async def myaccount_page(self):
         logging.info('getting a myaccount page')
         headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept': self.H_ACCEPT_TEXT,
             'Referer': str(self.LOGIN_URL),
             'Upgrade-Insecure-Requests': '1'
             }
@@ -294,7 +297,7 @@ class ZalandoAPI:
     async def one_size_accessories_page(self):
         logging.info('getting a accessories page')
         headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept': self.H_ACCEPT_TEXT,
             'Referer': str(self.MYACCOUNT_URL),
             'Upgrade-Insecure-Requests': '1'
         }
@@ -305,7 +308,7 @@ class ZalandoAPI:
     async def product_page(self, url: str):
         logging.info('getting a product page')
         headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept': self.H_ACCEPT_TEXT,
             'Referer': str(self.ACCESSORIES_URL),
             'Upgrade-Insecure-Requests': '1'
         }
@@ -316,7 +319,7 @@ class ZalandoAPI:
     async def cart_page(self, referer):
         logging.info('getting a cart page')
         headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept': self.H_ACCEPT_TEXT,
             'Referer': str(referer),
             'Upgrade-Insecure-Requests': '1'
         }
@@ -327,7 +330,7 @@ class ZalandoAPI:
     async def checkout_confirm_page(self):
         logging.info('getting a checkout confirm page')
         headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept': self.H_ACCEPT_TEXT,
             'Referer': str(self.CART_URL),
             'Upgrade-Insecure-Requests': '1'
         }
@@ -338,7 +341,7 @@ class ZalandoAPI:
     async def payment_session(self, url):
         logging.info('getting a payment session')
         headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept': self.H_ACCEPT_TEXT,
             'Host': URL(url).host,
             'Referer': str(self.CHK_ADDRESS_URL),
             'Upgrade-Insecure-Requests': '1'
@@ -346,12 +349,12 @@ class ZalandoAPI:
         resp = await self.session.get(url, headers=headers, allow_redirects=False)
         if resp.status != 307:
             raise ValueError(f'Invalid redirection status {resp.status}')
-        return resp.headers['location'], resp.cookies
+        return resp.headers['location']
 
-    async def payment_selection(self, url, cookies):
+    async def payment_selection(self, url):
         logging.info('getting a payment selection')
         headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept': self.H_ACCEPT_TEXT,
             'Host': url.host,
             'Referer': str(self.CHK_ADDRESS_URL),
             'Upgrade-Insecure-Requests': '1',
@@ -365,7 +368,7 @@ class ZalandoAPI:
     async def payment_complete(self, url):
         logging.info('getting a checkout payment complete')
         headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept': self.H_ACCEPT_TEXT,
             'Host': URL(url).host,
             'Referer': str(self.CHK_ADDRESS_URL),
             'Upgrade-Insecure-Requests': '1',

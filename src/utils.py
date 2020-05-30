@@ -8,16 +8,21 @@ class Delay:
     PAYMENT = 3
     CART = 4
 
+    DEFAULTS = {API: (200, 300),
+                PAGE: (500, 1800),
+                PAYMENT: (1017, 1903),
+                CART: (7031, 8023)}
+
     @staticmethod
     def make(category):
         if category == Delay.API:
-            delay = randint(200, 300)
+            delay = randint(*Delay.DEFAULTS[Delay.API])
         elif category == Delay.PAGE:
-            delay = randint(500, 1800)
+            delay = randint(*Delay.DEFAULTS[Delay.PAGE])
         elif category == Delay.PAYMENT:
-            delay = randint(1017, 1903)
+            delay = randint(*Delay.DEFAULTS[Delay.PAYMENT])
         elif category == Delay.CART:
-            delay = randint(7031, 8023)
+            delay = randint(*Delay.DEFAULTS[Delay.CART])
         return delay * 10 ** -3
 
 

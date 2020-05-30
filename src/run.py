@@ -1,6 +1,7 @@
 import sys
 import csv
 import asyncio
+import logging
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, FileType
 from contextvars import ContextVar
 
@@ -11,7 +12,7 @@ from yarl import URL
 from api import ZalandoAPI
 from tracing import on_request_chunk_sent, on_request_redirect, on_request_end
 from utils import make_ctx, Delay, sleep
-from parsing import *
+from parsing import find_product_params, find_address_id, find_rand_product_url, find_redeem_params
 
 
 TIMEOUT = 5
@@ -99,10 +100,10 @@ class PurchasingTask:
         payment_session_url = URL(await self.api.api_next_step(xsrf))
         await sleep(Delay.API)
         # 307,303, 302: payment.domain/selection, payment.domain/payment-complete, /checkout/confirm
-        location, cookies = await self.api.payment_session(payment_session_url)
+        location = await self.api.payment_session(payment_session_url)
         payment_selection_url = payment_session_url.with_path(location)
         await sleep(Delay.PAYMENT)
-        location = await self.api.payment_selection(payment_selection_url, cookies)
+        location = await self.api.payment_selection(payment_selection_url)
         await sleep(Delay.PAYMENT)
         await self.api.payment_complete(location)
         await self._resources(self.api.CHK_CONFIRM_URL)
@@ -123,13 +124,8 @@ class PurchasingTask:
         logging.info('task is running')
         xsrf = await self.log_in()
         await sleep(Delay.PAGE)
-        try:
-            await self.decrease_steps(xsrf)
-            await self.monitor_purchase()
-        except:
-            logging.exception('')
-            await sleep(Delay.PAGE)
-
+        await self.decrease_steps(xsrf)
+        await self.monitor_purchase()
         await self.log_out()
         await self.session.close()
         logging.info('task is finished')
