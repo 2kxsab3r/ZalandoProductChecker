@@ -17,7 +17,15 @@ from parsing import find_product_params, find_address_id, find_rand_product_url,
 
 TIMEOUT = 5
 SESSION_TIMEOUT = None
-ctx = ContextVar('ctx', default='MAINCTX')
+ptask_id = ContextVar('task_id', default='TaskRunner')
+
+
+class ContextLogRecord(logging.LogRecord):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ctx = ptask_id.get()
+logging.setLogRecordFactory(ContextLogRecord)
 
 
 def read_csv(file):
@@ -37,8 +45,10 @@ class PurchasingTask:
                                      timeout=ClientTimeout(total=SESSION_TIMEOUT),
                                      trace_configs=[trace_config])
         self.api = ZalandoAPI(session=self.session, **api_data)
-        ctx.set(make_ctx(self.api))  # todo не в корутине, может быть отрицательным
-        logging.info('task %s for %s is initialized', ctx.get(), self.api)
+        logging.info('task for %s is initialized', self.api)
+
+    def get_id(self):
+        return make_ctx(self.api)
 
     async def _resources(self, referer):
         await sleep(Delay.PAGE)
@@ -133,13 +143,15 @@ class PurchasingTask:
 
 async def main(csv):
     logging.info('create tasks')
-    tasks = []
+    atasks = []
     for api_data in read_csv(csv):
-        task = asyncio.create_task(PurchasingTask(api_data).run())
-        tasks.append(task)
+        ptask = PurchasingTask(api_data)
+        ptask_id.set(ptask.get_id())
+        atask = asyncio.create_task(ptask.run())
+        atasks.append(atask)
 
     logging.info('wait for tasks completion')
-    for f in asyncio.as_completed(tasks):
+    for f in asyncio.as_completed(atasks):
         try:
             res = await f
         except:
@@ -156,5 +168,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     logging.basicConfig(level=logging._nameToLevel[args.log_level.upper()], stream=sys.stdout,
-                        format='[%(asctime)s %(name)s %(levelname)s] %(message)s', datefmt='%m-%d %H:%M:%S')
+                        format='[%(asctime)s %(levelname)s %(ctx)s] %(message)s', datefmt='%m-%d %H:%M:%S')
+    # logging.setLogRecordFactory(ContextLogRecord)
     asyncio.run(main(args.csv))

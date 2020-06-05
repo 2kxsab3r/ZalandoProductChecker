@@ -65,7 +65,7 @@ class ZalandoAPI:
     MIME_JSON = 'application/json'
 
     login: str
-    password: str
+    password: str = field(repr=False)
     id: str
     dcode: str
     size: str

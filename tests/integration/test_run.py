@@ -1,7 +1,7 @@
 import asyncio
 from unittest.mock import patch, AsyncMock, Mock
 
-from run import PurchasingTask
+from run import PurchasingTask, ptask_id
 from utils import Delay
 
 
@@ -62,11 +62,13 @@ def test_purchasing_task(session_mock, find_product_params_mock, find_address_id
                                           get=AsyncMock(side_effect=get_responses),
                                           post=AsyncMock(),
                                           request=AsyncMock())
-    t = PurchasingTask(api_data)
-    asyncio.run(t.run())
+    pt = PurchasingTask(api_data)
+    token = ptask_id.set(pt.get_id())
+    asyncio.run(pt.run())
+    ptask_id.reset(token)
 
     find_rand_product_url_mock.assert_called_once_with(accessories_page_html)
     find_product_params_mock.assert_called_once_with(product_page_html)
     find_redeem_params_mock.assert_called_once_with(cart_page_html)
     find_address_id_mock.assert_called_once_with(checkout_confirm_page_html)
-    assert t.session.closed
+    assert pt.session.closed
