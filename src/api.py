@@ -29,7 +29,7 @@ class CookiePolicyState(IntEnum):
 
 @dataclass(unsafe_hash=True)
 class ZalandoAPI:
-    INDEX_URL = URL('https://www.zalando.co.uk')
+    INDEX_URL = URL('https://www.zalando.se')
     RESR_URL = INDEX_URL / 'resources/77fdb5043d236dc310c6074abbf38d'
     LOGIN_URL = INDEX_URL / 'login'
     MYACCOUNT_URL = INDEX_URL / 'myaccount'
@@ -172,11 +172,11 @@ class ZalandoAPI:
                "units": [
                    {
                        "local": "One Size",
-                       "local_type": "UK"
+                       "local_type": "SE"
                    }
                ]
            },
-          "localSizeType": "UK"
+          "localSizeType": "SE"
         }
         resp = await self.session.post(self.API_SIZERECO, headers=headers, json=data)
 
